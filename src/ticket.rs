@@ -1,5 +1,6 @@
 use md5;
 use sha1;
+use serde::{Deserialize, Serialize};
 
 pub trait TicketDigest {
     fn compose(&self) -> md5::Digest;
@@ -11,6 +12,7 @@ pub trait TicketDigest {
 // departure_time - Integer, unix timestamp
 // arrival_time - Integer, unix timestamp
 // price - Integer, цена в рублях
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SimpleTicket {
     id: String,
     departure_code: String,

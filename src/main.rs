@@ -1,4 +1,9 @@
 pub mod ticket;
+mod lmdb_repo;
+mod batch_request;
+
+#[macro_use]
+extern crate lazy_static;
 
 use std::{convert::Infallible, io};
 
@@ -11,30 +16,23 @@ use actix_web::{
     },
     middleware, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
-use async_stream::stream;
-
-use std::error::Error;
-// use std::fmt::Error;
-use std::fs;
-use std::path::Path;
-
+use crate::batch_request::BatchRequest;
 use heed::bytemuck::{Pod, Zeroable};
-use heed::byteorder::BE;
-use heed::types::*;
 use heed::{Database, EnvOpenOptions};
-// use serde::{Deserialize, Serialize};
 
-// async fn batch_insert(body: web::Bytes) -> Result<HttpResponse, Error> {
-//     // body is loaded, now we can deserialize json-rust
-//     let result = json::parse(std::str::from_utf8(&body).unwrap()); // return Result
-//     let injson: JsonValue = match result {
-//         Ok(v) => v,
-//         Err(e) => json::object! {"err" => e.to_string() },
-//     };
-//     Ok(HttpResponse::Ok()
-//         .content_type("application/json")
-//         .body(injson.dump()))
-// }
+async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
+    let serialized = serde_json::to_string(&body).unwrap();
+    // body is loaded, now we can deserialize json-rust
+    // let result = json::parse(std::str::from_utf8(&body).unwrap()); // return Result
+    // let injson: JsonValue = match result {
+    //     Ok(v) => v,
+    //     Err(e) => json::object! {"err" => e.to_string() },
+    // };
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        // .body(injson.dump()))
+        .body(serialized)) // TODO: Here
+}
 
 async fn default_handler(req_method: Method) -> Result<impl Responder> {
     match req_method {
@@ -53,16 +51,16 @@ async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     // Init LMDB
-    let env_path = Path::new("target").join("test-database.mdb");
-    let _ = fs::remove_dir_all(&env_path);
-    fs::create_dir_all(&env_path)?;
-    let env = EnvOpenOptions::new()
-        .map_size(10 * 1024 * 1024) // 10MB
-        .max_dbs(3)
-        .open(&env_path)
-        .unwrap();
-    let db: Database<md5::Digest, ticket::SimpleTicket> =
-        env.create_database(Some("test")).unwrap();
+    // let env_path = Path::new("target").join("test-database.mdb");
+    // let _ = fs::remove_dir_all(&env_path);
+    // fs::create_dir_all(&env_path)?;
+    // let env = EnvOpenOptions::new()
+    //     .map_size(10 * 1024 * 1024) // 10MB
+    //     .max_dbs(3)
+    //     .open(&env_path)
+    //     .unwrap();
+    // let db: Database<md5::Digest, ticket::SimpleTicket> =
+    //     env.create_database(Some("test")).unwrap();
 
     log::info!("Starting HTTP server at http://localhost:2989");
 
@@ -72,7 +70,7 @@ async fn main() -> io::Result<()> {
             .wrap(middleware::Compress::default())
             // enable logger - always register Actix Web Logger middleware last
             .wrap(middleware::Logger::default())
-            // .service(web::resource("/batch_insert").route(web::post().to(batch_insert)))
+            .service(web::resource("/batch_insert").route(web::post().to(batch_insert)))
             // .service(web::resource("/search").route(web::post().to(search)))
             .service(web::resource("/error").to(|| async {
                 error::InternalError::new(
