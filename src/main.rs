@@ -1,9 +1,11 @@
 pub mod ticket;
 mod lmdb_repo;
 mod batch_request;
+mod batch_response;
 
 #[macro_use]
 extern crate lazy_static;
+extern crate core;
 
 use std::{convert::Infallible, io};
 
@@ -17,14 +19,20 @@ use actix_web::{
     middleware, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use crate::batch_request::BatchRequest;
+use crate::batch_response::BatchResponse;
 use crate::lmdb_repo::LMDB;
 use heed::bytemuck::{Pod, Zeroable};
 use heed::{Database, EnvOpenOptions};
 
 async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
-    let serialized = serde_json::to_string(&body).unwrap();
-    let digest = md5::compute(b"abcdefghijklmnopqrstuvwxyz");
-    let _ = LMDB.put_data(&digest, &body.tickets[0].clone());
+    // let serialized = serde_json::to_string(&body).unwrap();
+
+    let inserts_count: u32 = body.insert_into_database().unwrap();
+    let resp = serde_json::to_string(&BatchResponse::new(inserts_count)).unwrap();
+
+    // HOW TO INSERT
+    // let digest = md5::compute(b"abcdefghijklmnopqrstuvwxyz");
+    // let _ = LMDB.put_data(&digest, &body.tickets[0].clone());
 
     // FOR TESTING WHAT IS IN Database================================================================
     // let wtxn = LMDB.env.write_txn().unwrap();
@@ -42,7 +50,7 @@ async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         // .body(injson.dump()))
-        .body(serialized)) // TODO: Here
+        .body(resp))
 }
 
 async fn default_handler(req_method: Method) -> Result<impl Responder> {

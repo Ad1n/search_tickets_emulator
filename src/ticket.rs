@@ -14,19 +14,13 @@ pub trait TicketDigest {
 // price - Integer, цена в рублях
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SimpleTicket {
-    id: String,
+    pub id: String,
     departure_code: String,
     arrival_code: String,
     departure_time: u32,
     arrival_time: u32,
     price: u32,
 }
-
-// impl SimpleTicket {
-//     fn new() -> SimpleTicket {
-//
-//     };
-// }
 
 impl Default for SimpleTicket {
     fn default() -> SimpleTicket {

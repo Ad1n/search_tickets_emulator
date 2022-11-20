@@ -1,9 +1,7 @@
 use std::fs;
 use std::path::Path;
-use heed::{Database, EnvOpenOptions, Error};
+use heed::{Database, EnvOpenOptions};
 use heed::types::Str;
-use serde::de::Unexpected::Option;
-use crate::ticket;
 use crate::ticket::SimpleTicket;
 
 pub struct LmdbRepo {
@@ -47,7 +45,7 @@ impl LmdbRepo {
         LMDB.db.put(&mut wtxn, as_str_key, serialized_value).expect("Write to database failed");
         match wtxn.commit() {
             Ok(_) => Ok(value),
-            Err(_) => Err("invalid header length"),
+            Err(_) => Err("Transaction failed to commit"),
         }
     }
 }
