@@ -17,11 +17,22 @@ use actix_web::{
     middleware, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
 use crate::batch_request::BatchRequest;
+use crate::lmdb_repo::LMDB;
 use heed::bytemuck::{Pod, Zeroable};
 use heed::{Database, EnvOpenOptions};
 
 async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
     let serialized = serde_json::to_string(&body).unwrap();
+    let digest = md5::compute(b"abcdefghijklmnopqrstuvwxyz");
+    let _ = LMDB.put_data(&digest, &body.tickets[0].clone());
+
+    // FOR TESTING WHAT IS IN Database================================================================
+    // let wtxn = LMDB.env.write_txn().unwrap();
+    // let mut iter = LMDB.db.iter(&wtxn).unwrap();
+    // assert_eq!(iter.next().transpose().unwrap(), Some(("And I come back", "to test things")));
+    // ================================================================================================
+
+
     // body is loaded, now we can deserialize json-rust
     // let result = json::parse(std::str::from_utf8(&body).unwrap()); // return Result
     // let injson: JsonValue = match result {

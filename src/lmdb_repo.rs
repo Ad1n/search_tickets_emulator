@@ -1,21 +1,21 @@
 use std::fs;
 use std::path::Path;
 use heed::{Database, EnvOpenOptions, Error};
+use heed::types::Str;
 use serde::de::Unexpected::Option;
 use crate::ticket;
-// use crate::ticket;
 use crate::ticket::SimpleTicket;
 
 pub struct LmdbRepo {
-    db: Database<md5::Digest, SimpleTicket>,
-    env: heed::Env,
-    env_path: std::path::PathBuf,
+    pub db: Database<Str, Str>,
+    pub env: heed::Env,
+    pub env_path: std::path::PathBuf,
     // collection: Vec<SimpleTicket>
 }
 
 // https://users.rust-lang.org/t/one-global-variable-for-mysql-connection/49063
 lazy_static! {
-    static ref LMDB: LmdbRepo = LmdbRepo::new();
+    pub static ref LMDB: LmdbRepo = LmdbRepo::new();
 }
 
 impl LmdbRepo {
@@ -29,7 +29,7 @@ impl LmdbRepo {
             .max_dbs(3)
             .open(&env_path)
             .unwrap();
-        let db_obj: Database<md5::Digest, ticket::SimpleTicket> =
+        let db_obj: Database<Str, Str> =
             env.create_database(Some("test")).unwrap();
 
         LmdbRepo {
@@ -39,9 +39,12 @@ impl LmdbRepo {
         }
     }
 
-    pub fn put_data<'b>(key: &md5::Digest, value: &'b SimpleTicket) -> Result<&'b SimpleTicket, &'static str> {
+    pub fn put_data<'b>(&self, key: &md5::Digest, value: &'b SimpleTicket) -> Result<&'b SimpleTicket, &'static str> {
         let mut wtxn = LMDB.env.write_txn().unwrap();
-        LMDB.db.put(&mut wtxn, &key, &value).expect("Write to database failed");
+        let as_str_key: &str = &format!("{:x}", key)[..];
+        let borrowed_value: String = serde_json::to_string(&value).unwrap();
+        let serialized_value = borrowed_value.as_str();
+        LMDB.db.put(&mut wtxn, as_str_key, serialized_value).expect("Write to database failed");
         match wtxn.commit() {
             Ok(_) => Ok(value),
             Err(_) => Err("invalid header length"),

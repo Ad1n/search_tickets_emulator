@@ -12,7 +12,7 @@ pub trait TicketDigest {
 // departure_time - Integer, unix timestamp
 // arrival_time - Integer, unix timestamp
 // price - Integer, цена в рублях
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SimpleTicket {
     id: String,
     departure_code: String,
