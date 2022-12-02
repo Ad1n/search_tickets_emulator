@@ -1,8 +1,8 @@
+use crate::ticket::SimpleTicket;
+use heed::types::Str;
+use heed::{Database, EnvOpenOptions};
 use std::fs;
 use std::path::Path;
-use heed::{Database, EnvOpenOptions};
-use heed::types::Str;
-use crate::ticket::SimpleTicket;
 
 pub struct LmdbRepo {
     pub db: Database<Str, Str>,
@@ -27,22 +27,27 @@ impl LmdbRepo {
             .max_dbs(3)
             .open(&env_path)
             .unwrap();
-        let db_obj: Database<Str, Str> =
-            env.create_database(Some("test")).unwrap();
+        let db_obj: Database<Str, Str> = env.create_database(Some("test")).unwrap();
 
         LmdbRepo {
             db: db_obj,
             env,
-            env_path
+            env_path,
         }
     }
 
-    pub fn put_data<'b>(&self, key: &md5::Digest, value: &'b SimpleTicket) -> Result<&'b SimpleTicket, &'static str> {
+    pub fn put_data<'b>(
+        &self,
+        key: &md5::Digest,
+        value: &'b SimpleTicket,
+    ) -> Result<&'b SimpleTicket, &'static str> {
         let mut wtxn = LMDB.env.write_txn().unwrap();
         let as_str_key: &str = &format!("{:x}", key)[..];
         let borrowed_value: String = serde_json::to_string(&value).unwrap();
         let serialized_value = borrowed_value.as_str();
-        LMDB.db.put(&mut wtxn, as_str_key, serialized_value).expect("Write to database failed");
+        LMDB.db
+            .put(&mut wtxn, as_str_key, serialized_value)
+            .expect("Write to database failed");
         match wtxn.commit() {
             Ok(_) => Ok(value),
             Err(_) => Err("Transaction failed to commit"),

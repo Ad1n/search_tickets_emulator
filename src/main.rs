@@ -1,7 +1,12 @@
-pub mod ticket;
-mod lmdb_repo;
 mod batch_request;
 mod batch_response;
+mod lmdb_repo;
+mod operations;
+mod search_request;
+mod search_response;
+pub mod ticket;
+mod ticket_solution;
+mod flight_graph;
 
 #[macro_use]
 extern crate lazy_static;
@@ -9,6 +14,10 @@ extern crate core;
 
 use std::{convert::Infallible, io};
 
+use crate::batch_request::BatchRequest;
+use crate::batch_response::BatchResponse;
+use crate::lmdb_repo::LMDB;
+use crate::search_request::SearchRequest;
 use actix_files::{Files, NamedFile};
 use actix_web::{
     error, get,
@@ -18,9 +27,6 @@ use actix_web::{
     },
     middleware, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
-use crate::batch_request::BatchRequest;
-use crate::batch_response::BatchResponse;
-use crate::lmdb_repo::LMDB;
 use heed::bytemuck::{Pod, Zeroable};
 use heed::{Database, EnvOpenOptions};
 
@@ -40,7 +46,6 @@ async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
     // assert_eq!(iter.next().transpose().unwrap(), Some(("And I come back", "to test things")));
     // ================================================================================================
 
-
     // body is loaded, now we can deserialize json-rust
     // let result = json::parse(std::str::from_utf8(&body).unwrap()); // return Result
     // let injson: JsonValue = match result {
@@ -51,6 +56,20 @@ async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
         .content_type("application/json")
         // .body(injson.dump()))
         .body(resp))
+}
+
+// Request example:
+// {
+// "departure_code": "LED",
+// "arrival_code": "AER,
+//   "departure_date": "2018-12-01",
+//   "limit": 100
+// }
+async fn search(body: web::Json<SearchRequest>) -> Result<impl Responder> {
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        // .body(injson.dump()))
+        .body(""))
 }
 
 async fn default_handler(req_method: Method) -> Result<impl Responder> {
@@ -90,6 +109,7 @@ async fn main() -> io::Result<()> {
             // enable logger - always register Actix Web Logger middleware last
             .wrap(middleware::Logger::default())
             .service(web::resource("/batch_insert").route(web::post().to(batch_insert)))
+            .service(web::resource("/batch_insert").route(web::post().to(search)))
             // .service(web::resource("/search").route(web::post().to(search)))
             .service(web::resource("/error").to(|| async {
                 error::InternalError::new(

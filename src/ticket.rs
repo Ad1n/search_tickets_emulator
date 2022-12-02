@@ -1,6 +1,6 @@
 use md5;
-use sha1;
 use serde::{Deserialize, Serialize};
+use sha1;
 
 pub trait TicketDigest {
     fn compose(&self) -> md5::Digest;
@@ -30,7 +30,7 @@ impl Default for SimpleTicket {
             arrival_code: "".to_string(),
             departure_time: 0,
             arrival_time: 0,
-            price: 0
+            price: 0,
         }
     }
 }
@@ -42,7 +42,8 @@ impl TicketDigest for SimpleTicket {
             self.arrival_code.to_string(),
             self.departure_time.to_string(),
             self.arrival_time.to_string(),
-        ].join("_");
+        ]
+        .join("_");
 
         md5::compute(composed_string.as_bytes())
     }
