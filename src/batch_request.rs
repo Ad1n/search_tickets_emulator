@@ -2,6 +2,7 @@ use crate::lmdb_repo::LMDB;
 use crate::ticket::{SimpleTicket, TicketDigest};
 use md5::Digest;
 use serde::{Deserialize, Serialize};
+use crate::flight_graph::graph_operations;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BatchRequest {
@@ -26,6 +27,9 @@ impl BatchRequest {
                 }
                 Err(err) => panic!("{}", err),
             }
+
+            let as_str_key = format!("{:x}", &Digest(composed_md5_as_str));
+            graph_operations::insert_ticket(&ticket, as_str_key);
         }
 
         // TODO: use object other than vector cause vector has no copy trait
