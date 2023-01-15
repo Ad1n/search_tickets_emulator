@@ -7,6 +7,7 @@ mod search_response;
 pub mod ticket;
 mod ticket_solution;
 mod flight_graph;
+mod search;
 
 #[macro_use]
 extern crate lazy_static;
@@ -29,6 +30,7 @@ use actix_web::{
 };
 use heed::bytemuck::{Pod, Zeroable};
 use heed::{Database, EnvOpenOptions};
+use crate::flight_graph::graph_operations::a_star_search;
 
 async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
     // let serialized = serde_json::to_string(&body).unwrap();
@@ -60,16 +62,20 @@ async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
 
 // Request example:
 // {
-// "departure_code": "LED",
-// "arrival_code": "AER,
+//   "departure_code": "LED",
+//   "arrival_code": "AER,
 //   "departure_date": "2018-12-01",
 //   "limit": 100
 // }
 async fn search(body: web::Json<SearchRequest>) -> Result<impl Responder> {
+    let r = serde_json::to_string(
+        &a_star_search(body.into_inner())
+    ).unwrap();
+
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         // .body(injson.dump()))
-        .body(""))
+        .body(r))
 }
 
 async fn default_handler(req_method: Method) -> Result<impl Responder> {
@@ -110,7 +116,7 @@ async fn main() -> io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(web::resource("/batch_insert").route(web::post().to(batch_insert)))
             .service(web::resource("/batch_insert").route(web::post().to(search)))
-            // .service(web::resource("/search").route(web::post().to(search)))
+            .service(web::resource("/search").route(web::post().to(search)))
             .service(web::resource("/error").to(|| async {
                 error::InternalError::new(
                     io::Error::new(io::ErrorKind::Other, "test"),

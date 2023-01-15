@@ -1,5 +1,7 @@
 use petgraph::{Graph, Undirected};
 use std::sync::Mutex;
+use petgraph::graph::NodeIndex;
+
 
 // Node
 pub struct IataAirline {
@@ -9,17 +11,30 @@ pub struct IataAirline {
 // Edge weight
 pub struct FlightWeight {
     flight_time: u32,
-    flights: Vec<String>,
+    pub(crate) flights: Vec<String>,
 }
 
 pub struct FlightGraph {
-    data: Graph<IataAirline, FlightWeight, Undirected>
+    pub(crate) data: Graph<IataAirline, FlightWeight, Undirected>
 }
 
 impl FlightGraph {
     pub fn new() -> FlightGraph {
         FlightGraph {
             data: Graph::new_undirected(),
+        }
+    }
+
+    pub fn find_node_idx(&self, code: &String) -> std::option::Option<NodeIndex> {
+        let g = FLIGHT_GRAPH.lock().unwrap();
+        self.data.node_indices().find(|i| &g.data[*i].code == code)
+    }
+
+    pub fn find_node_or_create(&self, code: &String, iata_node: IataAirline) -> std::option::Option<NodeIndex> {
+        let mut g = FLIGHT_GRAPH.lock().unwrap();
+        match self.find_node_idx(code) {
+            Some(node_index) => Some(node_index),
+            None => Some(g.data.add_node(iata_node))
         }
     }
 }
@@ -29,10 +44,20 @@ lazy_static! {
 }
 
 pub mod graph_operations {
+    use std::collections::HashMap;
+    use std::time::SystemTime;
+    use petgraph::adj::NodeIndex;
     use crate::flight_graph::{FLIGHT_GRAPH, FlightGraph, FlightWeight, IataAirline};
     use crate::ticket::SimpleTicket;
-    use petgraph::algo::dijkstra;
+    use petgraph::algo::{dijkstra, astar};
     use petgraph::csr::EdgeIndex;
+    use crate::search_request::SearchRequest;
+    use crate::ticket_solution::TicketSolution;
+    use petgraph::visit::{
+        IntoEdges, IntoEdgesDirected, IntoNeighbors, IntoNodeIdentifiers, NodeFiltered, Reversed, Topo,
+        VisitMap, Walker,
+    };
+    use crate::search::compose_search;
 
     pub fn insert_ticket(
         ticket: &SimpleTicket,
@@ -46,9 +71,17 @@ pub mod graph_operations {
             code: String::from(&ticket.arrival_code.clone()),
         };
         // Add first IataNode into graph - i.e MOW
-        let iata_node_0_idx = FLIGHT_GRAPH.lock().unwrap().data.add_node(iata_node_0);
+        // let iata_node_0_idx = FLIGHT_GRAPH.lock().unwrap().data.add_node(iata_node_0);
+        let iata_node_0_idx = FLIGHT_GRAPH.lock().unwrap().find_node_or_create(
+            &iata_node_0.code.clone(),
+            iata_node_0
+        ).unwrap();
         // Add second IataNode into graph - i.e LED
-        let iata_node_1_idx = FLIGHT_GRAPH.lock().unwrap().data.add_node(iata_node_1);
+        // let iata_node_1_idx = FLIGHT_GRAPH.lock().unwrap().data.add_node(iata_node_1);
+        let iata_node_1_idx = FLIGHT_GRAPH.lock().unwrap().find_node_or_create(
+            &iata_node_1.code.clone(),
+            iata_node_1
+        ).unwrap();
 
         let flight_time_0_1: u32 = ticket.arrival_time - ticket.departure_time;
 
@@ -83,6 +116,47 @@ pub mod graph_operations {
             iata_node_0_idx,
             iata_node_1_idx,
             new_weight
+        )
+    }
+
+    // AStar
+    pub fn a_star_search(search_request: SearchRequest) -> Vec<TicketSolution> {
+        let graph_mutex = FLIGHT_GRAPH.lock().unwrap();
+        let start = match graph_mutex.find_node_idx(&search_request.departure_code){
+            Some(node_idx) => node_idx,
+            None => panic!("There is no such node"),
+        };
+        let destination = match graph_mutex.find_node_idx(&search_request.arrival_code){
+            Some(node_idx) => node_idx,
+            None => panic!("There is no such node"),
+        };
+        let path = astar(
+            &graph_mutex.data,
+            start,
+            |finish| finish == destination,
+            |e| e.weight().flight_time,
+            |_| 0
+        );
+        match path {
+            Some(path) => compose_search(path),
+            None => panic!("There is no such path")
+        }
+    }
+
+    // Implementation only for example, not for real world
+    #[allow(dead_code)]
+    pub fn shortest_path_dijkstra(search_request: SearchRequest) -> HashMap<petgraph::graph::NodeIndex, u32> {
+        let graph_mutex = FLIGHT_GRAPH.lock().unwrap();
+        let start = match graph_mutex.find_node_idx(&search_request.departure_code){
+            Some(node_idx) => node_idx,
+            None => panic!("There is no such node"),
+        };
+        let goal = graph_mutex.find_node_idx(&search_request.arrival_code);
+        dijkstra(
+            &graph_mutex.data,
+            start,
+            goal,
+            |e| e.weight().flight_time
         )
     }
 }
