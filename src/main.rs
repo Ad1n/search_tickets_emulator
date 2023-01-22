@@ -13,23 +13,19 @@ mod search;
 extern crate lazy_static;
 extern crate core;
 
-use std::{convert::Infallible, io};
-
 use crate::batch_request::BatchRequest;
 use crate::batch_response::BatchResponse;
-use crate::lmdb_repo::LMDB;
 use crate::search_request::SearchRequest;
+use std::{io};
 use actix_files::{Files, NamedFile};
 use actix_web::{
-    error, get,
+    error,
     http::{
-        header::{self, ContentType},
+        header::{self},
         Method, StatusCode,
     },
     middleware, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
-use heed::bytemuck::{Pod, Zeroable};
-use heed::{Database, EnvOpenOptions};
 use crate::flight_graph::graph_operations::a_star_search;
 
 async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
@@ -93,18 +89,6 @@ async fn default_handler(req_method: Method) -> Result<impl Responder> {
 #[actix_web::main]
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-
-    // Init LMDB
-    // let env_path = Path::new("target").join("test-database.mdb");
-    // let _ = fs::remove_dir_all(&env_path);
-    // fs::create_dir_all(&env_path)?;
-    // let env = EnvOpenOptions::new()
-    //     .map_size(10 * 1024 * 1024) // 10MB
-    //     .max_dbs(3)
-    //     .open(&env_path)
-    //     .unwrap();
-    // let db: Database<md5::Digest, ticket::SimpleTicket> =
-    //     env.create_database(Some("test")).unwrap();
 
     log::info!("Starting HTTP server at http://localhost:2989");
 

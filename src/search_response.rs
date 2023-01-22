@@ -1,7 +1,7 @@
 use crate::ticket_solution::TicketSolution;
+use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SearchResponse {
-    solutions: Vec<TicketSolution>,
+    pub(crate) solutions: Vec<TicketSolution>,
 }
-
-impl SearchResponse {}
