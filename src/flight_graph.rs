@@ -1,9 +1,10 @@
 use petgraph::{Graph, Undirected};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use petgraph::graph::NodeIndex;
 
 
 // Node
+#[derive(Debug, Clone)]
 pub struct IataAirline {
     code: String,
 }
@@ -25,16 +26,15 @@ impl FlightGraph {
         }
     }
 
-    pub fn find_node_idx(&self, code: &String) -> std::option::Option<NodeIndex> {
-        let g = FLIGHT_GRAPH.lock().unwrap();
-        self.data.node_indices().find(|i| &g.data[*i].code == code)
+    pub fn find_node_idx(&self, code: String) -> std::option::Option<NodeIndex> {
+        self.data.node_indices().find(|i| self.data[*i].code == code)
     }
 
-    pub fn find_node_or_create(&self, code: &String, iata_node: IataAirline) -> std::option::Option<NodeIndex> {
-        let mut g = FLIGHT_GRAPH.lock().unwrap();
-        match self.find_node_idx(code) {
+    pub fn find_node_or_create(&mut self, iata_node: IataAirline) -> std::option::Option<NodeIndex> {
+        let temp_node = iata_node.clone();
+        match self.find_node_idx(iata_node.code) {
             Some(node_index) => Some(node_index),
-            None => Some(g.data.add_node(iata_node))
+            None => Some(self.data.add_node(temp_node))
         }
     }
 }
@@ -45,6 +45,7 @@ lazy_static! {
 
 pub mod graph_operations {
     use std::collections::HashMap;
+    use std::sync::MutexGuard;
     use std::time::SystemTime;
     use petgraph::adj::NodeIndex;
     use crate::flight_graph::{FLIGHT_GRAPH, FlightGraph, FlightWeight, IataAirline};
@@ -70,19 +71,14 @@ pub mod graph_operations {
         let iata_node_1: IataAirline = IataAirline {
             code: String::from(&ticket.arrival_code.clone()),
         };
+
+        let mut locked_m: MutexGuard<FlightGraph> = FLIGHT_GRAPH.lock().unwrap();
         // Add first IataNode into graph - i.e MOW
         // let iata_node_0_idx = FLIGHT_GRAPH.lock().unwrap().data.add_node(iata_node_0);
-        let iata_node_0_idx = FLIGHT_GRAPH.lock().unwrap().find_node_or_create(
-            &iata_node_0.code.clone(),
-            iata_node_0
-        ).unwrap();
+        let iata_node_0_idx = locked_m.find_node_or_create(iata_node_0).unwrap();
         // Add second IataNode into graph - i.e LED
         // let iata_node_1_idx = FLIGHT_GRAPH.lock().unwrap().data.add_node(iata_node_1);
-        let iata_node_1_idx = FLIGHT_GRAPH.lock().unwrap().find_node_or_create(
-            &iata_node_1.code.clone(),
-            iata_node_1
-        ).unwrap();
-
+        let iata_node_1_idx = locked_m.find_node_or_create(iata_node_1).unwrap();
         let flight_time_0_1: u32 = ticket.arrival_time - ticket.departure_time;
 
         let mut new_weight: FlightWeight = FlightWeight {
@@ -92,10 +88,10 @@ pub mod graph_operations {
 
         // Add flight segment from MOW to LED as edge where edge weight stores as
         // FlightWeight struct, which consists of flight time and vec of MD5 flights
-        match FLIGHT_GRAPH.lock().unwrap().data.find_edge(iata_node_0_idx, iata_node_1_idx) {
+        match locked_m.data.find_edge(iata_node_0_idx, iata_node_1_idx) {
             Some(edge_index) => {
-                let graph_mutex = FLIGHT_GRAPH.lock().unwrap();
-                let old_weight = graph_mutex.data.edge_weight(edge_index).unwrap();
+                // let graph_mutex = FLIGHT_GRAPH.lock().unwrap();
+                let old_weight = locked_m.data.edge_weight(edge_index).unwrap();
                 // let mut new_weight: FlightWeight = FlightWeight {
                 //     flight_time: flight_time_0_1,
                 //     flights: Vec::new(),
@@ -104,15 +100,15 @@ pub mod graph_operations {
                     new_weight.flights.push(i.clone());
                 }
                 // new_weight.flights.push(digest_as_string);
-                return FLIGHT_GRAPH.lock().unwrap().data.update_edge(iata_node_0_idx, iata_node_1_idx, new_weight)
+                return locked_m.data.update_edge(iata_node_0_idx, iata_node_1_idx, new_weight)
             },
             None => {
                 log::info!("Added new flight: {} - {}", &ticket.departure_code.clone(), &ticket.arrival_code.clone());
             },
         }
 
-        let mut graph_mutex = FLIGHT_GRAPH.lock().unwrap();
-        graph_mutex.data.add_edge(
+        // let mut graph_mutex = FLIGHT_GRAPH.lock().unwrap();
+        locked_m.data.add_edge(
             iata_node_0_idx,
             iata_node_1_idx,
             new_weight
@@ -122,11 +118,11 @@ pub mod graph_operations {
     // AStar
     pub fn a_star_search(search_request: SearchRequest) -> Vec<TicketSolution> {
         let graph_mutex = FLIGHT_GRAPH.lock().unwrap();
-        let start = match graph_mutex.find_node_idx(&search_request.departure_code){
+        let start = match graph_mutex.find_node_idx(search_request.departure_code){
             Some(node_idx) => node_idx,
             None => panic!("There is no such node"),
         };
-        let destination = match graph_mutex.find_node_idx(&search_request.arrival_code){
+        let destination = match graph_mutex.find_node_idx(search_request.arrival_code){
             Some(node_idx) => node_idx,
             None => panic!("There is no such node"),
         };
@@ -138,7 +134,7 @@ pub mod graph_operations {
             |_| 0
         );
         match path {
-            Some(path) => compose_search(path),
+            Some(path) => compose_search(graph_mutex, path),
             None => panic!("There is no such path")
         }
     }
@@ -147,11 +143,11 @@ pub mod graph_operations {
     #[allow(dead_code)]
     pub fn shortest_path_dijkstra(search_request: SearchRequest) -> HashMap<petgraph::graph::NodeIndex, u32> {
         let graph_mutex = FLIGHT_GRAPH.lock().unwrap();
-        let start = match graph_mutex.find_node_idx(&search_request.departure_code){
+        let start = match graph_mutex.find_node_idx(search_request.departure_code){
             Some(node_idx) => node_idx,
             None => panic!("There is no such node"),
         };
-        let goal = graph_mutex.find_node_idx(&search_request.arrival_code);
+        let goal = graph_mutex.find_node_idx(search_request.arrival_code);
         dijkstra(
             &graph_mutex.data,
             start,
