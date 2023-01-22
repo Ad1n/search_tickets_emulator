@@ -7,28 +7,26 @@ mod search_response;
 pub mod ticket;
 mod ticket_solution;
 mod flight_graph;
+mod search;
 
 #[macro_use]
 extern crate lazy_static;
 extern crate core;
 
-use std::{convert::Infallible, io};
-
 use crate::batch_request::BatchRequest;
 use crate::batch_response::BatchResponse;
-use crate::lmdb_repo::LMDB;
 use crate::search_request::SearchRequest;
+use std::{io};
 use actix_files::{Files, NamedFile};
 use actix_web::{
-    error, get,
+    error,
     http::{
-        header::{self, ContentType},
+        header::{self},
         Method, StatusCode,
     },
     middleware, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, Result,
 };
-use heed::bytemuck::{Pod, Zeroable};
-use heed::{Database, EnvOpenOptions};
+use crate::flight_graph::graph_operations::a_star_search;
 
 async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
     // let serialized = serde_json::to_string(&body).unwrap();
@@ -60,16 +58,20 @@ async fn batch_insert(body: web::Json<BatchRequest>) -> Result<impl Responder> {
 
 // Request example:
 // {
-// "departure_code": "LED",
-// "arrival_code": "AER,
+//   "departure_code": "LED",
+//   "arrival_code": "AER,
 //   "departure_date": "2018-12-01",
 //   "limit": 100
 // }
 async fn search(body: web::Json<SearchRequest>) -> Result<impl Responder> {
+    let r = serde_json::to_string(
+        &a_star_search(body.into_inner())
+    ).unwrap();
+
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         // .body(injson.dump()))
-        .body(""))
+        .body(r))
 }
 
 async fn default_handler(req_method: Method) -> Result<impl Responder> {
@@ -88,18 +90,6 @@ async fn default_handler(req_method: Method) -> Result<impl Responder> {
 async fn main() -> io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-    // Init LMDB
-    // let env_path = Path::new("target").join("test-database.mdb");
-    // let _ = fs::remove_dir_all(&env_path);
-    // fs::create_dir_all(&env_path)?;
-    // let env = EnvOpenOptions::new()
-    //     .map_size(10 * 1024 * 1024) // 10MB
-    //     .max_dbs(3)
-    //     .open(&env_path)
-    //     .unwrap();
-    // let db: Database<md5::Digest, ticket::SimpleTicket> =
-    //     env.create_database(Some("test")).unwrap();
-
     log::info!("Starting HTTP server at http://localhost:2989");
 
     HttpServer::new(move || {
@@ -110,7 +100,7 @@ async fn main() -> io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(web::resource("/batch_insert").route(web::post().to(batch_insert)))
             .service(web::resource("/batch_insert").route(web::post().to(search)))
-            // .service(web::resource("/search").route(web::post().to(search)))
+            .service(web::resource("/search").route(web::post().to(search)))
             .service(web::resource("/error").to(|| async {
                 error::InternalError::new(
                     io::Error::new(io::ErrorKind::Other, "test"),

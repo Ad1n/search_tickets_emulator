@@ -15,10 +15,10 @@ pub trait TicketDigest {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SimpleTicket {
     pub id: String,
-    departure_code: String,
-    arrival_code: String,
-    departure_time: u32,
-    arrival_time: u32,
+    pub departure_code: String,
+    pub arrival_code: String,
+    pub departure_time: u32,
+    pub arrival_time: u32,
     price: u32,
 }
 
