@@ -19,7 +19,7 @@ pub struct SimpleTicket {
     pub arrival_code: String,
     pub departure_time: u32,
     pub arrival_time: u32,
-    price: u32,
+    pub price: u32,
 }
 
 impl Default for SimpleTicket {

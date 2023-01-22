@@ -53,4 +53,12 @@ impl LmdbRepo {
             Err(_) => Err("Transaction failed to commit"),
         }
     }
+
+    pub fn read_data(&self, key: &str) -> Result<SimpleTicket, &str> {
+        let rtxn = LMDB.env.read_txn().unwrap();
+        match LMDB.db.get(&rtxn, key).unwrap() {
+            Some(r) => Ok(serde_json::from_str(r).unwrap()),
+            None => Err("Transaction failed to read data")
+        }
+    }
 }

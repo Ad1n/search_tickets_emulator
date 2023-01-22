@@ -2,7 +2,7 @@ use std::sync::MutexGuard;
 use petgraph::graph::NodeIndex;
 use crate::flight_graph::{FlightGraph};
 use crate::search_response::SearchResponse;
-use crate::ticket_solution::TicketSolution;
+use crate::ticket_solution::{count_price, TicketSolution};
 
 pub fn compose_search(
     graph_mutex: MutexGuard<FlightGraph>,
@@ -24,9 +24,10 @@ pub fn compose_search(
             if result.is_empty() {
                 for i in el {
                     let s: String = String::from(i);
+                    let ticket_ids: Vec<String> = vec![s];
                     let new_solution = TicketSolution { 
-                        ticket_ids: vec![s], 
-                        price: 1 
+                        ticket_ids: ticket_ids.clone(),
+                        price: count_price(&ticket_ids)
                     };
                     result.push(new_solution)
                 }
@@ -37,6 +38,7 @@ pub fn compose_search(
                     for el2 in el {
                         let mut temp_solution: TicketSolution = el1.clone();
                         temp_solution.ticket_ids.push(String::from(el2));
+                        temp_solution.recount_price();
                         result.push(temp_solution);
                     }
                 }
