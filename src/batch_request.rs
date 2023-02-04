@@ -1,4 +1,4 @@
-use crate::lmdb_repo::LMDB;
+use crate::lmdb_repo::{LMDB, PutResult};
 use crate::ticket::{SimpleTicket, TicketDigest};
 use md5::Digest;
 use serde::{Deserialize, Serialize};
@@ -21,9 +21,12 @@ impl BatchRequest {
 
         for ticket in self.tickets.iter() {
             let Digest(composed_md5_as_str): md5::Digest = ticket.compose();
-            match LMDB.put_data(&Digest(composed_md5_as_str), &ticket) {
-                Ok(_) => {
-                    suceeded_inserts += 1;
+            match LMDB.put_data_once(&Digest(composed_md5_as_str), &ticket) {
+                Ok(r) => {
+                    match r.1 {
+                        PutResult::New=> suceeded_inserts += 1,
+                        PutResult::Old => {}
+                    }
                 }
                 Err(err) => panic!("{}", err),
             }

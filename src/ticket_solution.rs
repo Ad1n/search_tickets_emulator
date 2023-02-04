@@ -15,7 +15,7 @@ impl TicketSolution {
 
 pub fn count_price(ticket_ids: &Vec<String>) -> u32 {
     ticket_ids.iter().map(|e| {
-        LMDB.read_data(&e[..]).unwrap().price
+        LMDB.read_data(&e[..]).unwrap().unwrap().price
     })
         .sum()
 }
