@@ -8,7 +8,11 @@ pub struct LmdbRepo {
     pub db: Database<Str, Str>,
     pub env: heed::Env,
     pub env_path: std::path::PathBuf,
-    // collection: Vec<SimpleTicket>
+}
+
+pub enum PutResult {
+    New,
+    Old
 }
 
 // https://users.rust-lang.org/t/one-global-variable-for-mysql-connection/49063
@@ -40,7 +44,7 @@ impl LmdbRepo {
         &self,
         key: &md5::Digest,
         value: &'b SimpleTicket,
-    ) -> Result<&'b SimpleTicket, &'static str> {
+    ) -> Result<&'b SimpleTicket, heed::Error> {
         let mut wtxn = LMDB.env.write_txn().unwrap();
         let as_str_key: &str = &format!("{:x}", key)[..];
         let borrowed_value: String = serde_json::to_string(&value).unwrap();
@@ -50,7 +54,34 @@ impl LmdbRepo {
             .expect("Write to database failed");
         match wtxn.commit() {
             Ok(_) => Ok(value),
-            Err(_) => Err("Transaction failed to commit"),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn put_data_once<'b>(
+        &self,
+        key: &md5::Digest,
+        value: &'b SimpleTicket
+    ) -> Result<(&'b SimpleTicket, PutResult), heed::Error> {
+        match self.read_data(&format!("{:x}", key)[..]) {
+            Ok(_) => Ok((value, PutResult::Old)),
+            Err(_) => {
+                let result = self.put_data(key, value)?;
+                Ok((result, PutResult::New))
+            }
+        }
+    }
+
+    pub fn read_data(&self, key: &str) -> Result<Option<SimpleTicket>, String> {
+        let rtxn = LMDB.env.read_txn().unwrap();
+        match LMDB.db.get(&rtxn, key) {
+            Ok(r) => {
+                match r {
+                    Some(v) => Ok(serde_json::from_str(v).unwrap()),
+                    None => Err(String::from("Empty value"))
+                }
+            },
+            Err(e) => Err(e.to_string())
         }
     }
 }
